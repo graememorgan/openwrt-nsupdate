@@ -1,0 +1,31 @@
+# /etc/hotplug.d/iface/30-nsupdate
+#
+# Update the WAN interface's address record on a remote DNS Server
+#
+# Based on http://www.foell.org/justin/diy-dynamic-dns-with-openwrt-bind/
+# and updated to work with a TP-Link TL-WR1043ND.
+
+# Test with: ACTION=update INTERFACE=wan /sbin/hotplug-call iface
+
+nameserver=ns1.example.com
+zonename=example.com
+hostname=home.example.com
+ttl=600
+
+[ "$INTERFACE" != "wan" ] && ( [ "$ACTION" != "ifup" ] && [ "$ACTION" != "update" ] ) && exit 0
+
+source /lib/functions/network.sh
+
+# get the IP address of the WAN interface
+network_get_ipaddr ip wan
+
+# clocks must be synchronised for the update to work
+ntpdate pool.ntp.org
+
+echo "server $nameserver
+zone $zonename
+update delete $hostname A
+update add ${hostname}. $ttl A $ip
+show
+send" | nsupdate -d -k /root/Kzazou.us.+157+57360 -v || logger -t nsupdate -p daemon.error "Update $hostname to $ip failed"
+logger -t nsupdate -p daemon.info "Update $hostname to $ip succeeded"
